@@ -4,6 +4,6 @@ installation:\
 refer to owl for all the dependencies\
 mkdir build\
 cd build\
-cmake ../ -DKN=<number of neighbors> -DNORM=0\
+cmake ../ -DKN=k -DNORM=0\
 make s01-knn\
 ./s01-knn filename npoints nsearchpoints radius_estimate\
