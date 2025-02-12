@@ -1,4 +1,4 @@
-Source code for paper Arkade: k-Nearest Neighbor Search With Non-Euclidean Distances using GPU Ray Tracing. 
+##  Source code of "Arkade: k-Nearest Neighbor Search With Non-Euclidean Distances using GPU Ray Tracing." 
 https://doi.org/10.1145/3650200.3656601
 
 High-performance implementations of k-Nearest Neighbor Search (kNN) in low dimensions use tree-based data structures. Tree algorithms are hard to parallelize on GPUs due to their irregularity. However, newer Nvidia GPUs offer hardware support for tree operations through ray-tracing cores. Recent works have proposed using RT cores to implement kNN search, but they all have a hardware-imposed constraint on the distance metric used in the search—the Euclidean distance. We propose and implement two reductions to support kNN for a broad range of distances other than the Euclidean distance: Arkade Filter-Refine and Arkade Monotone Transformation, each of which allows non-Euclidean distance-based nearest neighbor queries to be performed in terms of the Euclidean distance. With our reductions, we observe that kNN search time speedups range between 1.6x-200x and 1.3x-33.1x over various state-of-the-art GPU shader core and RT core baselines, respectively. In evaluation, we provide several insights on RT architectures’ ability to efficiently build and traverse the tree by analyzing the kNN search time trends.
@@ -9,11 +9,11 @@ The project is built with Optix 8 and cuda 12.2\
 refer to owl (https://github.com/owl-project/owl) for all the dependencies\
 
 ```
-mkdir build\
-cd build\
-cmake ../ -DKN=k -DNORM=0\
-make s01-knn\
-./s01-knn filename npoints nsearchpoints radius_estimate\
+mkdir build
+cd build
+cmake ../ -DKN=k -DNORM=0
+make s01-knn
+./s01-knn filename npoints nsearchpoints radius_estimate
 ```
 
 s01-knn performs knn search within a given radius. Sometimes, a query point may not be able to find all neighbors within this given radius, so we use Trueknn (https://github.com/vani-nag/OWLRayTracing) so that users do not have to worry about tuning the radius parameter for Arkade. s02-withTrueknn contains the combined code. To get the radius estimate, run initial_estimate.py first. num_samples can be as small as 1000.
