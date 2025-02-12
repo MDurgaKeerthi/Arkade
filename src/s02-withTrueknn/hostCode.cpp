@@ -7,17 +7,6 @@
 #include <owl/DeviceMemory.h>   
 #include "deviceCode.h"          
 
-#include <iostream>
-#include <fstream>
-#include <string>
-#include <sstream>
-#include <random>
-#include <ctime>
-#include <chrono>
-#include <algorithm>
-#include <set>
-#include <iomanip>
-#include <ios>
 
 #define FLOAT_MAX 3.402823466e+38
 #define FLOAT_MIN 1.175494351e-38
@@ -36,7 +25,6 @@ int main(int ac, char **argv)
   int npoints = atoi(argv[2]);
   int nsearchpoints = atoi(argv[3]);
   float radius = atof(argv[4]); 
-  int knn = KN;
 
   if(!myfile.is_open())
   {
@@ -57,11 +45,11 @@ int main(int ac, char **argv)
 	  }
 
     if(linenum < npoints)
-      // Spheres_data.push_back(Sphere{vec3f(vect[0],vect[1],vect[2])});
-      Spheres_data.push_back(Sphere{vec3f(vect[0],vect[1],0.0f)});
+      Spheres_data.push_back(Sphere{vec3f(vect[0],vect[1],vect[2])});
+      // Spheres_data.push_back(Sphere{vec3f(vect[0],vect[1],0.0f)});
     else
-      // Spheres_query.push_back(Sphere{vec3f(vect[0],vect[1],vect[2])});
-      Spheres_query.push_back(Sphere{vec3f(vect[0],vect[1],0.0f)});
+      Spheres_query.push_back(Sphere{vec3f(vect[0],vect[1],vect[2])});
+      // Spheres_query.push_back(Sphere{vec3f(vect[0],vect[1],0.0f)});
     
     linenum++;
 	}	
@@ -74,12 +62,13 @@ int main(int ac, char **argv)
 
 	//Init neighbors array
 	for(int j=0; j<nsearchpoints; j++){
-    for(int i = 0; i < knn; i++)
-		  neighbors.push_back(Neigh{-1,FLOAT_MIN});
+    for(int i = 0; i < KN; i++)
+		  neighbors.push_back(Neigh{-1,FLOAT_MAX});
   }	
+  vector<int> n_neighbors(nsearchpoints, 0);
 
   std::cout << radius << std::endl;
-  std::cout << knn << std::endl;
+  std::cout << KN << std::endl;
   std::cout << npoints << std::endl;
   std::cout << nsearchpoints << std::endl;
 
@@ -87,10 +76,11 @@ int main(int ac, char **argv)
 	const int fbSize = nsearchpoints;
 
   // init owl
+
   OWLContext context = owlContextCreate(nullptr,1);
   OWLModule  module  = owlModuleCreate(context,deviceCode_ptx);
 
-  // set up all the *GEOMETRY* graph we want 
+  // set up all the *GEOMETRY* graph we want to render
   OWLVarDecl SpheresGeomVars[] = {
     { "data_pts",  OWL_BUFPTR, OWL_OFFSETOF(SpheresGeom,data_pts)},
     { "rad", OWL_FLOAT, OWL_OFFSETOF(SpheresGeom,rad)},
@@ -112,6 +102,15 @@ int main(int ac, char **argv)
   OWLBuffer frameBuffer
     = owlHostPinnedBufferCreate(context,OWL_USER_TYPE(neighbors[0]),
                             neighbors.size());
+
+  // vector<long long int> intersecs(nsearchpoints, 0);
+  // OWLBuffer intersecBuffer
+  //   = owlManagedMemoryBufferCreate(context,OWL_USER_TYPE(intersecs[0]),
+  //                           intersecs.size(), intersecs.data());
+                            
+  OWLBuffer n_neighBuffer
+    = owlHostPinnedBufferCreate(context, OWL_INT,
+                            n_neighbors.size());                      
  
   OWLBuffer dataSpheresBuffer
     = owlDeviceBufferCreate(context,OWL_USER_TYPE(Spheres_data[0]),
@@ -128,15 +127,21 @@ int main(int ac, char **argv)
   owlGeomSet1f(SpheresGeom,"rad",radius);
 
   // Params
+  int round = 0;
+
   OWLVarDecl myGlobalsVars[] = {
 	{"frameBuffer", OWL_BUFPTR, OWL_OFFSETOF(MyGlobals, frameBuffer)},
-	{"k", OWL_INT, OWL_OFFSETOF(MyGlobals, k)},
+  {"num_neighbors", OWL_BUFPTR, OWL_OFFSETOF(MyGlobals, num_neighbors)},
+	{"round", OWL_INT, OWL_OFFSETOF(MyGlobals, round)},
+  // {"intersections", OWL_BUFPTR, OWL_OFFSETOF(MyGlobals, intersections)},
 	{ /* sentinel to mark end of list */ }
 	};
 
 	OWLParams lp = owlParamsCreate(context,sizeof(MyGlobals),myGlobalsVars,-1);
 	owlParamsSetBuffer(lp,"frameBuffer",frameBuffer);	
-	owlParamsSet1i(lp,"k",knn);		
+  owlParamsSetBuffer(lp,"num_neighbors",n_neighBuffer);	
+	owlParamsSet1i(lp,"round",round);		
+  // owlParamsSetBuffer(lp,"intersections",intersecBuffer);
 
   OWLGeom  userGeoms[] = {
     SpheresGeom
@@ -144,11 +149,16 @@ int main(int ac, char **argv)
 
 	auto start_b = std::chrono::steady_clock::now();
   OWLGroup spheresGroup
-    = owlUserGeomGroupCreate(context,1,userGeoms);
+    = owlUserGeomGroupCreate(context,1,userGeoms 
+                            ,OPTIX_BUILD_FLAG_ALLOW_UPDATE
+                            );
   owlGroupBuildAccel(spheresGroup);
 
   OWLGroup world
-    = owlInstanceGroupCreate(context,1,&spheresGroup);
+    = owlInstanceGroupCreate(context,1,&spheresGroup
+                            ,nullptr, nullptr,OWL_MATRIX_FORMAT_OWL,
+                            OPTIX_BUILD_FLAG_ALLOW_UPDATE
+                            );
   owlGroupBuildAccel(world);
 
   auto end_b = std::chrono::steady_clock::now();
@@ -175,34 +185,54 @@ int main(int ac, char **argv)
   owlBuildPrograms(context);
 	owlBuildPipeline(context);
   owlBuildSBT(context);
-	
-	auto start = std::chrono::steady_clock::now();	
-	
-  owlLaunch2D(rayGen,nsearchpoints,1,lp);
+
+  int repeat = 1;
+  // int in_rounds = atoi(argv[6]);
+  auto start = std::chrono::steady_clock::now();	 
+  double overhead_time; 
+  // while(repeat && round < in_rounds)
+  while(repeat)
+  {
+    // printf("round: %d\n", round);
+    owlLaunch2D(rayGen,nsearchpoints,1,lp);
+
+    const int *nb = (const int*)owlBufferGetPointer(n_neighBuffer,0);
+    repeat = 0;
+    for(int q=0; q<nsearchpoints; q++)
+    {
+      if (nb[q] < KN)
+      {
+        repeat = 1;
+        
+        round++;
+        owlParamsSet1i(lp,"round",round);		
+        radius *= 2;
+        owlGeomSet1f(SpheresGeom, "rad", radius);
+        owlGroupRefitAccel(spheresGroup);
+        owlGroupRefitAccel(world);
+        break;
+      }
+    }
+  }
 
   auto end = std::chrono::steady_clock::now();
 	auto elapsed = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
 	std::cout << elapsed.count()/1000000.0<< std::endl;
-	
-  // const Neigh *fb = (const Neigh*)owlBufferGetPointer(frameBuffer,0);
-  // long long intersections = 0;
-  // for(int j=0; j<nsearchpoints; j++){
-  //   intersections += fb[j*knn].ind;
-  // }
-  // cout<<intersections<<endl;
 
   // printf("Complete Search, writing output to file...\n");
+  // const Neigh *fb = (const Neigh*)owlBufferGetPointer(frameBuffer,0);
   // std::ofstream outfile;
   // outfile.open(argv[5]);
+  // // std::cout<<setprecision(6);
 	// for(int j=0; j<nsearchpoints; j++){
-  //   for(int i = 0; i < knn; i++)
+  //   for(int i = 0; i < KN; i++)
   //   {            
-  //     outfile<<fb[j*knn+i].ind<<'\t'<<fb[j*knn+i].dist<<endl;
+  //     outfile<<fb[j*KN+i].ind<<'\t'<<fb[j*KN+i].dist<<endl;
   //   }
   // }
   // outfile.close();
 
   // and finally, clean up
-  // owlContextDestroy(context);
+  owlContextDestroy(context);
 
 }

@@ -8,16 +8,16 @@ add_definitions(-DENHANCE)
 
 embed_ptx(
   OUTPUT_TARGET
-    sample01-knn-ptx
+    sample02-withTrueknn-ptx
   PTX_LINK_LIBRARIES
     owl::owl
   SOURCES
     deviceCode.cu
 )
 
-add_executable(sample01-knn hostCode.cpp)
-target_link_libraries(sample01-knn
+add_executable(sample02-withTrueknn hostCode.cpp)
+target_link_libraries(sample02-withTrueknn
   PRIVATE
-    sample01-knn-ptx
+    sample02-withTrueknn-ptx
     owl::owl
 )

@@ -1,8 +1,9 @@
-// All rights reserved 
+// All rights reserved by 
+// Durga Keerthi Mandarapu, Vani Nagarajan, Artem Pelenitsyn, and Milind Kulkarni. 2024. 
+// Arkade: k-Nearest Neighbor Search With Non-Euclidean Distances using GPU Ray Tracing. 
 
 #include "deviceCode.h"
 #include <optix_device.h>
-#include "../../owl/include/owl/common/parallel/parallel_for.h"
 
 using namespace owl;
 

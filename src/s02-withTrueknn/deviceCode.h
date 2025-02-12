@@ -8,6 +8,18 @@
 #include <owl/common/math/AffineSpace.h>
 #include <owl/common/math/random.h>
 
+#include <iostream>
+#include <fstream>
+#include <string>
+#include <sstream>
+#include <random>
+#include <ctime>
+#include <chrono>
+#include <algorithm>
+#include <set>
+#include <iomanip>
+#include <ios>
+
 #define FLOAT_MIN 1.175494351e-38
 #define FLOAT_MAX 3.402823466e+38
 // #define KN 10
@@ -16,12 +28,12 @@ using namespace std;
 
 namespace owl {
 
-	typedef struct maximumDistanceLogger
+  typedef struct maximumDistanceLogger
 	{
 		int ind;
 		float dist;
 	}Neigh;
-	
+
   struct Sphere {
     vec3f center;
   };
@@ -40,7 +52,9 @@ namespace owl {
   struct MyGlobals 
   {	
     Neigh *frameBuffer;
-    int k;
+    int *num_neighbors;
+    int round;
+    long long int *intersections;
   };
 
   struct NeighGroup
